@@ -63,6 +63,8 @@ export const chatBehaviorRules = [
   {
     id: "compare-multiple-products-same-category",
     type: "open",
+    title: "同カテゴリ比較",
+    description: "同じカテゴリで複数商品を短時間に見比べたら open",
     shouldTrigger(context) {
       if (!["l3", "l4"].includes(context.route.level)) {
         return false;
@@ -91,6 +93,8 @@ export const chatBehaviorRules = [
   {
     id: "long-stay-on-product-detail",
     type: "open",
+    title: "L4長時間滞在",
+    description: "商品詳細ページの滞在時間が長いときに open",
     shouldTrigger(context) {
       return (
         context.route.level === "l4" &&
@@ -105,6 +109,8 @@ export const chatBehaviorRules = [
   {
     id: "open-after-5-l3-l4-transitions",
     type: "open",
+    title: "L3/L4往復5回",
+    description: "商品一覧と詳細を5回行き来したら open",
     shouldTrigger(context) {
       return context.metrics.l3l4TransitionCount >= 5;
     },
@@ -115,6 +121,8 @@ export const chatBehaviorRules = [
   {
     id: "support-info-interest",
     type: "open",
+    title: "不安情報の確認",
+    description: "サイズ・素材・返品・在庫確認の導線を触ったら open",
     shouldTrigger(context) {
       return context.route.level === "l4" && getRecentSupportClicks(context.interaction, context.now).length >= 1;
     },
@@ -125,6 +133,8 @@ export const chatBehaviorRules = [
   {
     id: "stalled-before-cart",
     type: "open",
+    title: "カート前停止",
+    description: "商品詳細で迷っている時間が長いときに open",
     shouldTrigger(context) {
       return (
         context.route.level === "l4" &&
@@ -139,6 +149,8 @@ export const chatBehaviorRules = [
   {
     id: "stalled-after-cart",
     type: "open",
+    title: "カート後停止",
+    description: "カート追加後に行動が止まったら open",
     shouldTrigger(context) {
       const lastCartAdd = getLastCartAdd(context.interaction);
 
@@ -156,6 +168,8 @@ export const chatBehaviorRules = [
   {
     id: "frequent-filter-changes",
     type: "open",
+    title: "絞り込み多用",
+    description: "L3でフィルタや並び順を頻繁に変えたら open",
     shouldTrigger(context) {
       return context.route.level === "l3" && getRecentFilterChanges(context.interaction, context.now).length >= 4;
     },
@@ -166,6 +180,8 @@ export const chatBehaviorRules = [
   {
     id: "stock-or-size-unavailable",
     type: "open",
+    title: "在庫・サイズ不足",
+    description: "在庫切れやサイズ欠品に遭遇したら open",
     shouldTrigger(context) {
       return (
         isCurrentProductOutOfStock(context) ||
@@ -179,6 +195,8 @@ export const chatBehaviorRules = [
   {
     id: "repeat-visit-same-product-group",
     type: "open",
+    title: "同カテゴリ再訪",
+    description: "同じ商品群を再訪したら open",
     shouldTrigger(context) {
       if (!["l3", "l4"].includes(context.route.level)) {
         return false;
@@ -200,6 +218,8 @@ export const chatBehaviorRules = [
   {
     id: "exit-intent-on-shopping-pages",
     type: "open",
+    title: "離脱兆候",
+    description: "L3/L4で離脱しそうな動きがあれば open",
     shouldTrigger(context) {
       return (
         context.event.type === "EXIT_INTENT" &&
@@ -213,6 +233,8 @@ export const chatBehaviorRules = [
   {
     id: "close-on-home-return",
     type: "close",
+    title: "ホーム復帰で close",
+    description: "L1ホームに戻ったら chat を close",
     shouldTrigger(context) {
       return context.route.level === "l1" && context.chat.isOpen;
     },

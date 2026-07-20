@@ -946,7 +946,63 @@ function NotFound() {
   );
 }
 
-function ChatBot({ isOpen, onToggle, message }) {
+function RulePanel({ rules, ruleEnabledMap, onToggleRule, lastRuleEvent, isChatOpen }) {
+  return (
+    <aside className="rule-panel">
+      <div className="rule-panel-header">
+        <p className="eyebrow">Demo Rules</p>
+        <h2>チャット制御ルール</h2>
+        <p>各ルールを UI から on / off し、どのルールで chat が動いたか確認できます。</p>
+      </div>
+
+      <div className="rule-status-card">
+        <p className="eyebrow">Latest Trigger</p>
+        {lastRuleEvent ? (
+          <>
+            <strong>{lastRuleEvent.title}</strong>
+            <p>
+              直近の制御は <b>{lastRuleEvent.type}</b> で、chat は現在{" "}
+              <b>{isChatOpen ? "open" : "closed"}</b> です。
+            </p>
+            <p>{lastRuleEvent.message}</p>
+          </>
+        ) : (
+          <p>まだルール起動は発生していません。</p>
+        )}
+      </div>
+
+      <div className="rule-list">
+        {rules.map((rule) => {
+          const isEnabled = ruleEnabledMap[rule.id] !== false;
+          const isLatest = lastRuleEvent?.id === rule.id;
+
+          return (
+            <article key={rule.id} className={`rule-card ${isLatest ? "rule-card-active" : ""}`}>
+              <div className="rule-card-top">
+                <div>
+                  <p className="eyebrow">{rule.type}</p>
+                  <h3>{rule.title}</h3>
+                </div>
+                <label className="rule-toggle">
+                  <input
+                    type="checkbox"
+                    checked={isEnabled}
+                    onChange={() => onToggleRule(rule.id)}
+                  />
+                  <span>{isEnabled ? "ON" : "OFF"}</span>
+                </label>
+              </div>
+              <p>{rule.description}</p>
+              <code>{rule.id}</code>
+            </article>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
+function ChatBot({ isOpen, onToggle, message, lastRuleEvent }) {
   return (
     <aside className={`chatbot ${isOpen ? "chatbot-open" : ""}`} aria-live="polite">
       <div className="chatbot-window">
@@ -964,6 +1020,12 @@ function ChatBot({ isOpen, onToggle, message }) {
           <div className="chatbot-message">
             <p>{message}</p>
           </div>
+          {lastRuleEvent ? (
+            <div className="chatbot-rule-note">
+              <strong>{lastRuleEvent.type.toUpperCase()}</strong>
+              <span>{lastRuleEvent.title}</span>
+            </div>
+          ) : null}
           <div className="chatbot-actions">
             <button className="secondary-button">サイズ相談</button>
             <button className="secondary-button">おすすめを聞く</button>
@@ -985,6 +1047,10 @@ function App() {
   const [chatMessage, setChatMessage] = useState(
     "気になる商品があれば、サイズ感やおすすめカテゴリをご案内します。",
   );
+  const [lastRuleEvent, setLastRuleEvent] = useState(null);
+  const [ruleEnabledMap, setRuleEnabledMap] = useState(() =>
+    Object.fromEntries(chatBehaviorRules.map((rule) => [rule.id, true])),
+  );
   const [selectedColor, setSelectedColor] = useState("all");
   const [selectedSort, setSelectedSort] = useState("recommended");
   const [selectedSize, setSelectedSize] = useState("");
@@ -997,6 +1063,9 @@ function App() {
     isOpen: false,
     message: "気になる商品があれば、サイズ感やおすすめカテゴリをご案内します。",
   });
+  const ruleEnabledMapRef = useRef(
+    Object.fromEntries(chatBehaviorRules.map((rule) => [rule.id, true])),
+  );
 
   function emitEvent(event) {
     interactionStateRef.current = recordChatEvent(interactionStateRef.current, event);
@@ -1006,7 +1075,7 @@ function App() {
         : null;
 
     const matchedRule = evaluateChatRules({
-      rules: chatBehaviorRules,
+      rules: chatBehaviorRules.filter((rule) => ruleEnabledMapRef.current[rule.id] !== false),
       context: {
         route: currentRouteRef.current,
         event,
@@ -1024,17 +1093,24 @@ function App() {
     }
 
     triggeredRuleIdsRef.current.add(matchedRule.id);
+    const payload = matchedRule.buildPayload?.({
+      route: currentRouteRef.current,
+      event,
+      metrics: interactionStateRef.current.metrics,
+      interaction: interactionStateRef.current,
+      product: currentProduct,
+      now: event.timestamp,
+    });
+
+    setLastRuleEvent({
+      id: matchedRule.id,
+      title: matchedRule.title,
+      type: matchedRule.type,
+      message: payload?.message ?? matchedRule.description,
+      timestamp: event.timestamp,
+    });
 
     if (matchedRule.type === "open") {
-      const payload = matchedRule.buildPayload?.({
-        route: currentRouteRef.current,
-        event,
-        metrics: interactionStateRef.current.metrics,
-        interaction: interactionStateRef.current,
-        product: currentProduct,
-        now: event.timestamp,
-      });
-
       if (payload?.message) {
         setChatMessage(payload.message);
       }
@@ -1086,6 +1162,14 @@ function App() {
     });
   }
 
+  function handleToggleRule(ruleId) {
+    triggeredRuleIdsRef.current.delete(ruleId);
+    setRuleEnabledMap((current) => ({
+      ...current,
+      [ruleId]: !current[ruleId],
+    }));
+  }
+
   useEffect(() => {
     currentRouteRef.current = route;
   }, [route]);
@@ -1096,6 +1180,10 @@ function App() {
       message: chatMessage,
     };
   }, [isChatOpen, chatMessage]);
+
+  useEffect(() => {
+    ruleEnabledMapRef.current = ruleEnabledMap;
+  }, [ruleEnabledMap]);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -1344,13 +1432,23 @@ function App() {
   return (
     <div className="app-shell">
       <Header />
-      <main className="page-shell">{content}</main>
+      <div className="demo-layout">
+        <main className="page-shell">{content}</main>
+        <RulePanel
+          rules={chatBehaviorRules}
+          ruleEnabledMap={ruleEnabledMap}
+          onToggleRule={handleToggleRule}
+          lastRuleEvent={lastRuleEvent}
+          isChatOpen={isChatOpen}
+        />
+      </div>
       <ChatBot
         isOpen={isChatOpen}
         onToggle={() => {
           setIsChatOpen((current) => !current);
         }}
         message={chatMessage}
+        lastRuleEvent={lastRuleEvent}
       />
     </div>
   );
